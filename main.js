@@ -44,10 +44,10 @@ class Piece {
 }
 
 var blackPieces = [];
-for (let i = 0; i < 10; i++) {
-    for (let j = 0; j < 4; j++) {
-        if ((i + j) % 2 === 0) {
-            blackPieces.push(new Piece(B, i*SIZE, j*SIZE));
+for (let row = 0; row < 10; row++) {
+    for (let col = 0; col < 4; col++) {
+        if ((row + col) % 2 === 1) {
+            blackPieces.push(new Piece(B, row*SIZE, col*SIZE));
         }
     }
 }
@@ -56,7 +56,7 @@ for (let i = 0; i < 10; i++) {
 var whitePieces = [];
 for (let i = 0; i < 10; i++) {
     for (let j = 9; j > 5; j--) {
-        if ((i + j) % 2 === 0) {
+        if ((i + j) % 2 === 1) {
             whitePieces.push(new Piece(W, i*SIZE, j*SIZE));
         }
     }
@@ -88,7 +88,7 @@ function drawBoard() {
     for(let i = 0; i < 10; i++) {
         for(let j = 0; j < 10; j++) {
             let {x, y} = {x: SIZE * i, y: SIZE * j};
-            fill((i+j) % 2 == 0 ? color1:color2);
+            fill((i+j) % 2 == 0 ? color2:color1);
             rect(x, y, SIZE, SIZE);
         }
     }
@@ -126,3 +126,10 @@ function mouseDragged () {
     if (!currentElement) { return; }
     currentElement.moveTo(mouseX-OFF, mouseY-OFF);
 }
+
+// (function () {
+//     var socket = io('http://localhost:8000');
+//     socket.on('connect', function(){});
+//     socket.on('event', function(data){});
+//     socket.on('disconnect', function(){});
+// })();
