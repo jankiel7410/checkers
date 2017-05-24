@@ -8,7 +8,7 @@ class Pos(namedtuple('P', ['x', 'y'])):
     @staticmethod
     def from_str(some_str: str):
         try:
-            x, y = pos
+            x, y = some_str
             x, y = int(x), LET_TO_NUM[y]
         except:
             raise Board.BadPosition(some_str)
@@ -23,10 +23,8 @@ class Pos(namedtuple('P', ['x', 'y'])):
     def __neg__(self):
         return self - Pos(0, 0)
 
-
     def __add__(self, other):
         return Pos(self.x + other.x, self.y + other.y)
-
 
 
 class Color(enum.Enum):
@@ -94,12 +92,12 @@ class Board:
     def __getitem__(self, key: Pos):
         self.validate_pos(key)
         x, y = key
-        return self.board[x][y]
+        return self.board[y][x]
 
     def __setitem__(self, key: Pos, val: Color):
         self.validate_pos(key)
         x, y = key
-        self.board[x][y] = val
+        self.board[y][x] = val
     
     def validate_pos(self, pos: Pos):
         if 0 <= pos.x < 10 and 0 <= pos.y < 10:
@@ -113,6 +111,9 @@ class Board:
         if dt.abs() != Pos(1, 1):
             raise BadMoveException(pos1, pos2)
         v1, v2 = self[pos1], self[pos2]
+        if v1 == Color.EMPTY:
+            raise BadMoveException(pos1, pos2, 'source empty')
+        print( v1, v2)
         if v2 != Color.EMPTY:
             raise BadMoveException(pos1, pos2, 'target not empty')
 
