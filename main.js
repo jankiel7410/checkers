@@ -1,6 +1,3 @@
-function setup() {
-  createCanvas(401, 401);
-}
 SIZE = 40;
 OFF = SIZE/2; //MOUSE OFFSET
 B = 0, W = 1;
@@ -60,6 +57,10 @@ for (let i = 0; i < 10; i++) {
             whitePieces.push(new Piece(W, i*SIZE, j*SIZE));
         }
     }
+}
+
+function setup() {
+    createCanvas(401, 401);
 }
 
 function draw() {
@@ -127,9 +128,8 @@ function mouseDragged () {
     currentElement.moveTo(mouseX-OFF, mouseY-OFF);
 }
 
-// (function () {
-//     var socket = io('http://localhost:8000');
-//     socket.on('connect', function(){});
-//     socket.on('event', function(data){});
-//     socket.on('disconnect', function(){});
-// })();
+
+
+(function () {
+    
+})();

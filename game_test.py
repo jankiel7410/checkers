@@ -1,7 +1,7 @@
 import unittest
 from copy import deepcopy
 
-from game import Game, Color, Board, Pos
+from game import Game, Color, Board, Pos, Player
 
 # class GameTest(unittest.TestCase):
 #     def setUp(self):
@@ -13,11 +13,13 @@ from game import Game, Color, Board, Pos
 class BoardTest(unittest.TestCase):
     def setUp(self):
         self.board = Board()
+        self.wp = Player(color=Color.WHITE)
+        self.combo_board = Board()
 
     def test_valid_move(self):
-        pos1 = Pos(1, 6)
-        pos2 = Pos(2, 5)
-        self.board.move(pos1, pos2)
+        pos1 = Pos(6, 1)
+        pos2 = Pos(5, 2)
+        self.board.move(self.wp, pos1, pos2)
 
     def test_positions(self):
         with self.assertRaises(Board.BadPosition):
@@ -25,29 +27,47 @@ class BoardTest(unittest.TestCase):
         with self.assertRaises(Board.BadPosition):
             self.board[Pos(11, 2)]
         self.board[Pos(1, 2)]
-        
 
     def test_invalid_move_leap(self):
         pos1 = Pos(8, 9)
         pos2 = Pos(4, 5)
         with self.assertRaises(Board.BadMove):
-            self.board.move(pos1, pos2)
+            self.board.move(self.wp, pos1, pos2)
 
     def test_invalid_move_overlap(self):
-        pos1 = Pos(8, 9)
-        pos2 = Pos(9, 8)
+        pos1 = Pos(9, 8)
+        pos2 = Pos(8, 9)
         with self.assertRaises(Board.BadMove):
-            self.board.move(pos1, pos2)
+            self.board.move(self.wp, pos1, pos2)
 
     def test_beating(self):
-        self.board.board[5][8] = Color.BLACK
-        pos = Pos(9, 6)
-        target = Pos(7, 4)
+        self.board[Pos(5, 8)] = Color.BLACK
+        pos = Pos(6, 9)
+        target = Pos(4, 7)
         print(self.board)
-        self.board.move(pos, target)
-        self.assertEqual(Pos(8, 5), Color.EMPTY)
-        self.assertEqual(pos, Color.EMPTY)
-        self.assertEqual(target, Color.WHITE)
+        self.board.move(self.wp, pos, target)
+        self.assertEqual(self.board[Pos(5, 8)], Color.EMPTY)
+        self.assertEqual(self.board[pos], Color.EMPTY)
+        self.assertEqual(self.board[target], Color.WHITE)
+
+    def test_combo(self):
+        self.board[Pos(5, 8)] = Color.BLACK
+        pos = Pos(6, 9)
+        target = Pos(4, 7)
+        print(self.board)
+        self.board.move(self.wp, pos, target)
+        self.assertEqual(self.board[Pos(5, 8)], Color.EMPTY)
+        self.assertEqual(self.board[pos], Color.EMPTY)
+        self.assertEqual(self.board[target], Color.WHITE)
+
+    def test_bad_combo(self):
+        self.board[Pos(5, 8)] = Color.BLACK
+        pos = Pos(6, 1)
+        target = Pos(5, 2)
+        print(self.board)
+        with self.assertRaises(Board.BadMove):
+            self.board.move(self.wp, pos, target)
+
 
 if __name__ == '__main__':
     unittest.main()
