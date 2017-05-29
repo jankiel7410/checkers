@@ -22,10 +22,8 @@ class BoardTest(unittest.TestCase):
         self.board.move(self.wp, pos1, pos2)
 
     def test_positions(self):
-        with self.assertRaises(Board.BadPosition):
-            self.board[Pos(-1, 2)]
-        with self.assertRaises(Board.BadPosition):
-            self.board[Pos(11, 2)]
+        self.assertEqual(self.board[Pos(-1, 2)], Color.WALL)
+        self.assertEqual(self.board[Pos(11, 2)], Color.WALL)
         self.board[Pos(1, 2)]
 
     def test_invalid_move_leap(self):
@@ -44,17 +42,26 @@ class BoardTest(unittest.TestCase):
         self.board[Pos(5, 8)] = Color.BLACK
         pos = Pos(6, 9)
         target = Pos(4, 7)
-        print(self.board)
         self.board.move(self.wp, pos, target)
         self.assertEqual(self.board[Pos(5, 8)], Color.EMPTY)
         self.assertEqual(self.board[pos], Color.EMPTY)
         self.assertEqual(self.board[target], Color.WHITE)
 
+    def test_beating_edge(self):
+        self.board[Pos(4, 1)] = Color.WHITE
+        pos = Pos(6, 3)
+        target = Pos(5, 4)
+        print()
+        print(self.board)
+        print()
+        self.board.move(self.wp, pos, target)
+        self.assertEqual(self.board[target], Color.WHITE)
+        self.assertEqual(self.board[pos], Color.EMPTY)
+
     def test_combo(self):
         self.board[Pos(5, 8)] = Color.BLACK
         pos = Pos(6, 9)
         target = Pos(4, 7)
-        print(self.board)
         self.board.move(self.wp, pos, target)
         self.assertEqual(self.board[Pos(5, 8)], Color.EMPTY)
         self.assertEqual(self.board[pos], Color.EMPTY)

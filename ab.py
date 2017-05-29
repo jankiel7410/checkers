@@ -1,7 +1,8 @@
 INF = float('inf')
 
+
 def minimax(node, depth=2):
-    return alphabeta(node, depth, -INF, INF)
+    return alphabeta(node, depth, -INF, INF, True)
 
 
 def alphabeta(node, depth, alpha, beta, isMaximizing):

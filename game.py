@@ -1,7 +1,12 @@
 import enum
-from itertools import cycle, chain
+from copy import deepcopy
+from itertools import cycle
 from string import ascii_uppercase
 from collections import namedtuple
+from time import time
+
+
+from ab import minimax
 
 
 class Pos(namedtuple('P', ['x', 'y'])):
@@ -41,6 +46,7 @@ class Color(enum.Enum):
     WHITE = 0
     BLACK = 1
     EMPTY = 2
+    WALL = 3
 
     def __str__(self):
         if self == Color.WHITE:
@@ -82,6 +88,7 @@ class Board:
     def __init__(self):
         self.last_moved_piece = None
         SIZE = 10
+        self.moves = []
         self.board = [[Color.EMPTY]*SIZE for i in range(SIZE)]
         for row in range(SIZE):
             for col in range(SIZE):
@@ -101,9 +108,13 @@ class Board:
         return board
 
     def __getitem__(self, key: Pos):
-        self.validate_pos(key)
         x, y = key
-        return self.board[x][y]
+        if x < 0 or y < 0:
+            return Color.WALL
+        try:
+            return self.board[x][y]
+        except IndexError:
+            return Color.WALL
 
     def __setitem__(self, key: Pos, val: Color):
         self.validate_pos(key)
@@ -118,6 +129,7 @@ class Board:
     def validate_move(self, player, source, target):
         self.validate_pos(source)
         self.validate_pos(target)
+        opposing = opposing_color(player.type)
         dt = (target - source).abs()
         piece_color, target_color = self[source], self[target]
 
@@ -126,6 +138,11 @@ class Board:
             raise BadMoveException(source, target)
         if dt.x > 2:
             raise BadMoveException(source, target, "Jumping too far")
+        if dt.x == 2:
+            middle_pos = (source+target)/2
+            middle = self[middle_pos]
+            if  middle != opposing:
+                raise BadMoveException(source, target, "Attack failed - %s %s" % (str(middle_pos), str(middle)))
         # check if colors are right
         if piece_color == Color.EMPTY:  # todo: check if right piece is being moved
             raise BadMoveException(source, target, 'source empty')
@@ -145,16 +162,18 @@ class Board:
         return abs(pos2.x-pos1.x) == 1
 
     def neighbours_of(self, pos, color):  # left and right one
-        x = pos.x + (-1 if color == Color.WHITE else 1)
-        if  not (0 <= x < 10):
+        dx = -1 if color == Color.WHITE else 1
+        if not (1 <= pos.x + dx < 9):
             return []
+        dt1, dt2 = Pos(dx, -1), Pos(dx, 1)
         neighbours = []
-        y = pos.y - 1
-        if y >= 0:
-            neighbours.append(Pos(x, y))
-        y = pos.y + 1
-        if y < 10:
-            neighbours.append(Pos(x, y))
+        neighbor = pos + dt1
+        if neighbor.y >= 1 and self[neighbor + dt1] == Color.EMPTY:
+            neighbours.append(neighbor)
+
+        neighbor = pos + dt1
+        if neighbor.y < 9 and self[neighbor + dt2] == Color.EMPTY:
+            neighbours.append(neighbor)
         return neighbours
 
     def _is_beat_possible(self, player, pos):
@@ -179,40 +198,84 @@ class Board:
             for other_piece in (p for p in self._get_pieces(player.type) if p != source):
                 if self._is_beat_possible(player, other_piece):
                     raise BadMoveException(source, target, 'Cant move; beating is possible (%s)' % str(other_piece))
-            self[source], self[target] =  Color.EMPTY, player.type
+            self[source], self[target] = Color.EMPTY, player.type
         elif self.is_jumping(source, target):
             middle_pos = (source + target) / 2
             opponent = self[middle_pos]
             if opponent == player.type:  # trying to jump over own piece
                 raise BadMoveException(source, target, 'Jumping over the same piece (%s to %s over %s)' % (source, target, middle_pos))
-            self[source], self[middle_pos], self[target] =  Color.EMPTY, Color.EMPTY, player.type
+            self[source], self[middle_pos], self[target] = Color.EMPTY, Color.EMPTY, player.type
         self.last_moved_piece = target
+        self.moves.append((player, source, target))
 
 LET_TO_NUM = {l: n for n, l in enumerate(ascii_uppercase[:10])}
 NUM_TO_LET = {n: l for l, n in enumerate(LET_TO_NUM.items())}
+
 
 class Game:
     def __init__(self):
         self.W, self.B = Player(Color.WHITE), Player(Color.BLACK)
         self.players = cycle([self.W, self.B])
         self.board = Board()
-        self.score = {self.W: 0, self.B: 0}
+        self.current_player = self.W
 
     def draw_board(self):
         print(str(self.board))
 
-    def _raw_move_to_pos(self, raw_move):
-        pos, *moves = raw_move.split(' ')
-        return Pos(pos), [Pos(move) for move in moves]
+    def copy(self):
+        return deepcopy(self)
 
-    def make_move(self, raw_move: str):
-        pos, destination = self._raw_move_to_pos(raw_move)
+    def evaluate_for(self, player):
+        score = 0.0
+        color = player.type
+        opponent = opposing_color(color)
+        for row in self.board.board:
+            for cell in row:
+                if cell == color:
+                    score += 1
+                elif cell == opponent:
+                    score -= 1
+        return score
+
+    def _raw_move_to_pos(self, raw_move):
+        (x, y), *moves = raw_move.split(' ')
+        return Pos(int(x), int(y)), [Pos(int(x), int(y)) for x, y in moves]
+
+    def make_raw_move(self, raw_move: str):
+        source, targets = self._raw_move_to_pos(raw_move)
+        for target in targets:
+            self.board.move(self.current_player, source, target)
+            source = target
+
+    def make_move(self, source, target):
         self.board.move(self.current_player, source, target)
-        
 
     def end_turn(self):
-        self.current_player = next(self.players)
+        self.current_player = self.B if self.current_player == self.W else self.W
 
+    def is_terminating(self):
+        whites = False
+        blacks = False
+        for row in self.board.board:
+            for cell in row:
+                blacks = blacks or cell == Color.BLACK
+                whites = whites or cell == Color.WHITE
+                if whites and blacks:
+                    return False
+        return True
+
+    def ai_turn(self, depth=3):
+        t = time()
+        node = Node(self, None,  None)
+        score = float('-inf')
+        winning_variant = None
+        for child in node.children():
+            new_score = minimax(child, depth)
+            if new_score > score:
+                winning_variant = child
+        print('new solution found in', time() - t, 's')
+        self.board = winning_variant.game.board
+        self.end_turn()
 
 
 def opposing_color(color):
@@ -225,27 +288,49 @@ class Node(object):
     directions = [Pos(1,1), Pos(-1,1), Pos(1,-1), Pos(-1,-1) ]
     directions += [d*2 for d in directions]
 
-    def __init__(self, game: Game):
+    def __init__(self, game: Game, source, target):
         self.game = game
+        self.source = source
+        self.target = target
+
+    def value(self):
+        return self.game.evaluate_for(self.game.B)
+
+    def is_terminating(self):
+        return self.game.is_terminating()
 
     def possible_moves(self, piece):
-        return iter(d + piece for d in directions)
+        return iter(d + piece for d in self.directions)
+
+    def children(self):
+        self.game.end_turn()
+        color = self.game.current_player.type
+        for piece in self.game.board._get_pieces(color):
+            for node in self.yield_moves_for(self.game, piece):
+                yield node
 
     def yield_moves_for(self, game: Game, piece: Pos):
-        color = self.game.current_player.type
         for possible_target in self.possible_moves(piece):
-            game_copy = self.game.copy()
+            game_copy = game.copy()
             try:
                 game_copy.make_move(piece, possible_target)
-                yield Node(game_copy)
+                yield Node(game_copy, piece, possible_target)
                 # try to make combo
                 self.yield_moves_for(game_copy, possible_target)
 
-            except BadMoveException:
+            except (BadMoveException, BadPositionException):
                 pass
 
-    def children(self):
-        game.next_player()
-        color = opposing_color(self.game.current_player.type)
-        for piece in self.game.board._get_pieces(color):
-            self.yield_moves(self.game, piece)
+if __name__ == '__main__':
+    g = Game()
+    while not g.is_terminating():
+        g.draw_board()
+        while True:
+            try:
+                move = input('your move:')
+                g.make_raw_move(move)
+                break
+            except Exception as e:
+                print(e)
+
+        g.ai_turn()
