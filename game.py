@@ -1,5 +1,5 @@
 import enum
-from copy import deepcopy
+from copy import copy
 from itertools import cycle
 from string import ascii_uppercase
 from collections import namedtuple
@@ -126,6 +126,12 @@ class Board:
             return
         raise self.BadPosition(pos)
 
+    def copy(self):
+        b = [copy(row) for row in self.board]
+        c = copy(self)
+        c.board = b
+        return c
+
     def validate_move(self, player, source, target):
         self.validate_pos(source)
         self.validate_pos(target)
@@ -229,7 +235,10 @@ class Game:
         print(str(self.board))
 
     def copy(self):
-        return deepcopy(self)
+        new_game = copy(self)
+        board_copy = self.board.copy()
+        new_game.board = board_copy
+        return new_game
 
     def evaluate_for(self, player):
         score = 0.0
@@ -293,7 +302,6 @@ class Game:
                 winning_variant = child
         print('new solution found in', time() - t, 's')
         self.board = winning_variant.game.board
-        self.end_turn()
 
 
 def opposing_color(color):
@@ -305,6 +313,8 @@ def opposing_color(color):
 class Node(object):
     directions = [Pos(1,1), Pos(-1,1), Pos(1,-1), Pos(-1,-1) ]
     directions += [d*2 for d in directions]
+    black_directions = [p for p in directions if p.x > 0]
+    white_directions = [p for p in directions if p.x < 0]
 
     def __init__(self, game: Game, source, target):
         self.game = game
@@ -317,8 +327,11 @@ class Node(object):
     def is_terminating(self):
         return self.game.is_terminating()
 
-    def possible_moves(self, piece):
-        return iter(d + piece for d in self.directions)
+    def possible_moves(self, piece, color):
+        if color == Color.BLACK:
+            return iter(d + piece for d in self.black_directions)
+        else:
+            return iter(d + piece for d in self.white_directions)
 
     def children(self):
         # children are about next turn, so this turn must end now
@@ -332,7 +345,8 @@ class Node(object):
                 yield node
 
     def yield_moves_for(self, game: Game, piece: Pos):
-        for possible_target in self.possible_moves(piece):
+        color = game.board[piece]
+        for possible_target in self.possible_moves(piece, color):
             game_copy = game.copy()
             try:
                 game_copy.make_move(piece, possible_target)
@@ -343,7 +357,8 @@ class Node(object):
             except (BadMoveException, BadPositionException):
                 pass
 
-if __name__ == '__main__':
+
+def player_v_ai():
     g = Game()
     while not g.is_terminating():
         g.draw_board()
@@ -354,5 +369,16 @@ if __name__ == '__main__':
                 break
             except Exception as e:
                 print(e)
-
         g.ai_turn()
+        g.end_turn()
+
+
+def ai_v_ai():
+    g = Game()
+    while not g.is_terminating():
+        g.draw_board()
+        g.ai_turn(3)
+
+
+if __name__ == '__main__':
+    player_v_ai()
