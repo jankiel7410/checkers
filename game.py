@@ -46,7 +46,7 @@ class Color(enum.Enum):
     WHITE = 0
     BLACK = 1
     EMPTY = 2
-    WALL = 3
+    WALL = 3  # position out of bounds
 
     def __str__(self):
         if self == Color.WHITE:
@@ -120,7 +120,7 @@ class Board:
         self.validate_pos(key)
         x, y = key
         self.board[x][y] = val
-    
+
     def validate_pos(self, pos: Pos):
         if 0 <= pos.x < 10 and 0 <= pos.y < 10:
             return
@@ -138,10 +138,10 @@ class Board:
             raise BadMoveException(source, target)
         if dt.x > 2:
             raise BadMoveException(source, target, "Jumping too far")
-        if dt.x == 2:
+        if dt.x == 2:  # move variant: beating opponent's piece
             middle_pos = (source+target)/2
             middle = self[middle_pos]
-            if  middle != opposing:
+            if middle != opposing:
                 raise BadMoveException(source, target, "Attack failed - %s %s" % (str(middle_pos), str(middle)))
         # check if colors are right
         if piece_color == Color.EMPTY:  # todo: check if right piece is being moved
@@ -150,9 +150,9 @@ class Board:
             raise BadMoveException(source, target, 'target not empty')
 
         # check if move is in right direction
-        is_combo = source is self.last_moved_piece
+        is_combo = source is self.last_moved_piece  # combo is when we beat with the same piece multiple times
         if not is_combo:
-            to_white_edge = target.x - source.x > 0
+            to_white_edge = target.x > source.x  # move is downwards
             valid_black = to_white_edge and piece_color == Color.BLACK
             valid_white = not to_white_edge and piece_color == Color.WHITE
             if not (valid_black or valid_white):
@@ -160,6 +160,9 @@ class Board:
 
     def is_moving(self, pos1, pos2):
         return abs(pos2.x-pos1.x) == 1
+
+    def is_jumping(self, pos1, pos2):
+        return abs(pos2.x-pos1.x) == 2
 
     def neighbours_of(self, pos, color):  # left and right one
         dx = -1 if color == Color.WHITE else 1
@@ -171,14 +174,17 @@ class Board:
         if neighbor.y >= 1 and self[neighbor + dt1] == Color.EMPTY:
             neighbours.append(neighbor)
 
-        neighbor = pos + dt1
+        neighbor = pos + dt2
         if neighbor.y < 9 and self[neighbor + dt2] == Color.EMPTY:
             neighbours.append(neighbor)
         return neighbours
 
     def _is_beat_possible(self, player, pos):
+        # 2 conditions must be met: neighboring piece is of opposite color and next to that
+        # piece is a free cell, so jump is possible
         curr_color = self[pos]
         opponent_color = Color.WHITE if curr_color == Color.BLACK else Color.BLACK
+        # check if neighbour is of opposite color
         return any(self[p] == opponent_color for p in self.neighbours_of(pos, curr_color))
 
     def _get_pieces(self, color):
@@ -187,18 +193,18 @@ class Board:
                 if c == color:
                     yield(Pos(x, y))
 
-    def is_jumping(self, pos1, pos2):
-        return abs(pos2.x-pos1.x) == 2
-
     def move(self, player, source, target):
         self.validate_move(player, source, target)
 
         if self.is_moving(source, target):
             # if is moving, check if beating is also possible. Moving is then disallowed.
-            for other_piece in (p for p in self._get_pieces(player.type) if p != source):
+            # other pieces of that player, that are not currently moved piece
+            my_other_pieces = iter(p for p in self._get_pieces(player.type) if p != source)
+            for other_piece in my_other_pieces:
                 if self._is_beat_possible(player, other_piece):
                     raise BadMoveException(source, target, 'Cant move; beating is possible (%s)' % str(other_piece))
             self[source], self[target] = Color.EMPTY, player.type
+
         elif self.is_jumping(source, target):
             middle_pos = (source + target) / 2
             opponent = self[middle_pos]
@@ -229,13 +235,25 @@ class Game:
         score = 0.0
         color = player.type
         opponent = opposing_color(color)
-        for row in self.board.board:
-            for cell in row:
+        BEATABLE_WEIGHT = 0.2
+
+        for x, row in enumerate(self.board.board):
+            for y, cell in enumerate(row):
+                pos = Pos(x, y)
+                is_beatable = self.is_beatable(pos, cell)
+                weight = BEATABLE_WEIGHT if is_beatable else 1  # if not beatable, weight = 1 (neutral)
+
                 if cell == color:
-                    score += 1
+                    score += 1 * weight
                 elif cell == opponent:
-                    score -= 1
+                    score -= 1 * weight
         return score
+
+    def is_beatable(self, pos, color):
+        dx = 1 if color == Color.WHITE else -1
+        opposing = opposing_color(color)
+        return self.board[Pos(pos.x + dx, pos.y - 1)] == opposing or self.board[Pos(pos.x + dx, pos.y + 1)] == opposing
+
 
     def _raw_move_to_pos(self, raw_move):
         (x, y), *moves = raw_move.split(' ')
@@ -303,9 +321,13 @@ class Node(object):
         return iter(d + piece for d in self.directions)
 
     def children(self):
+        # children are about next turn, so this turn must end now
         self.game.end_turn()
+        # next player's color
         color = self.game.current_player.type
+        # for every piece of that color
         for piece in self.game.board._get_pieces(color):
+            # yield nodes with all possible move variants
             for node in self.yield_moves_for(self.game, piece):
                 yield node
 
